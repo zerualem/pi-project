@@ -10,7 +10,7 @@ library(doParallel)
 
 registerDoParallel(cores = 6)
 
-imp_static <- missForest(static_data, maxiter = 3, ntree = 10, parallelize = "variable")
+imp_static <- missForest(static_data, maxiter = 3, ntree = 10, parallelize = "variable", verbose = TRUE)
 
 imp_data <- imp_static$ximp
 
