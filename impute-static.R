@@ -33,7 +33,7 @@ impute <- function (fname) {
   raw_data <- read.csv(paste0("Analysis/",fname), header=T, row.names = 1)
   print(paste("Imputing", fname,"data"))
   print(dim(raw_data))
-  imp_data <- mice(raw_data,m=3,maxit=10,meth='pmm',seed=500)
+  imp_data <- mice(raw_data,m=3,maxit=5,seed=500)
   saveRDS(imp_data, file = paste0(fname,"mice.rds"))
 }
 
