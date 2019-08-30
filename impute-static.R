@@ -30,7 +30,7 @@ library(mice)
 ## Define imputation function
 impute <- function (fname) {
   
-  raw_data <- read.csv(paste0("Analysis/",fname, ".csv"), header=T, row.names = 1)
+  raw_data <- read.csv(paste0("Data/",fname, ".csv"), header=T, row.names = 1)
   print(paste("Imputing", fname,"data"))
   print(dim(raw_data))
   imp_data <- mice(raw_data,m=3,maxit=5,seed=500)
