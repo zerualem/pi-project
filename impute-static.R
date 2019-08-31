@@ -38,9 +38,7 @@ impute <- function (fname) {
 }
 
 ## Files list
-files.name <- c("static_agg_data", "braden_agg_perc", "location_agg", 
-                "periop_numeric_agg", "periop_yn_agg", "surgical_data_agg", 
-                "ts_binary_agg", "ts_numeric_agg")
+files.name <- c("surgical_data_agg", "ts_binary_agg", "ts_numeric_agg")
 
 
 ## Impute all data
