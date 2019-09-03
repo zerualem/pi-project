@@ -2,24 +2,24 @@
 ###### Imputation script ####################################
 #############################################################
 
-static_data <- read.csv("Data/static_agg_data.csv", header=T, row.names = 1)
-print("Static data")
-print(dim(static_data))
+# surgical_data <- read.csv("Data/surgical_data_agg.csv", header=T, row.names = 1)
+#print("Static data")
+#print(dim(surgical_data))
 
-library(missForest)
+#library(missForest)
 library(doParallel)
 
 registerDoParallel(cores = 6)
 
-#imp_static <- missForest(static_data, maxiter = 3, ntree = 10, parallelize = "variable", verbose = TRUE)
+#imp_surgical <- missForest(surgical_data, maxiter = 3, ntree = 10, parallelize = "variable", verbose = TRUE)
 
-#imp_data <- imp_static$ximp
+#imp_data <- imp_surgical$ximp
 
-#print(imp_static$OOBerror)
+#print(imp_surgical$OOBerror)
 
 #summary(imp_data)
 
-#saveRDS(imp_data, file = "imp_static.rds")
+#saveRDS(imp_surgical, file = "Output/imp_surgical_miss.rds")
 
 #############
 
@@ -38,7 +38,7 @@ impute <- function (fname) {
 }
 
 ## Files list
-files.name <- c("surgical_data_agg", "ts_binary_agg", "ts_numeric_agg")
+files.name <- c( "ts_numeric_agg")
 
 
 ## Impute all data
