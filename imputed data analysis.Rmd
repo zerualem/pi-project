@@ -1,0 +1,140 @@
+---
+title: "Imputed data analysis"
+author: "Zerihun Bekele"
+date: "9/3/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Imputed data
+
+| Data type | Imputed? | Method |
+|----:|:----:|:----:|
+| Static numeric | Yes | Mice |
+| Braden activity | Yes | Mice |
+| Time series binary | No | No missing values |
+| time series numeric | Yes | Mice |
+| Location | Yes | Mice |
+| Periop numeric | Yes | Mice |
+| Periop binary | NO | No missing values |
+| Surgical data | No | Packages fail |
+
+
+## Import imputed data
+
+### Import and analyze static numeric data
+
+```{r}
+# Function to read and combine imputed data
+combine_date <- function(fname){
+  imp_dt <- readRDS(paste0("Mice-impute-output/", fname))
+  imp1 <- complete(imp_dt, 1)
+  imp2 <- complete(imp_dt, 2)
+  imp3 <- complete(imp_dt, 3)
+
+  cat_vars <- names(imp1)[unlist(lapply(imp1, is.factor))]
+  num_vars <- setdiff(names(imp1), cat_vars)
+
+  # Take the mean of the imputed tables for the numeric variables
+  num_dt <- (imp1[,num_vars] + imp2[,num_vars] + imp3[, num_vars])/3
+
+  # For the categorical data we can either pick at random or the most frequent one
+  # Here I will just pick one at random
+  # The the complete dataframe becomes the combination of the numerical and categorical
+  return(cbind(num_dt, imp1[, cat_vars]))
+}
+
+```
+
+```{r message=FALSE}
+library(mice)
+
+static_combined <- combine_date("static_agg_datamice.rds")
+
+```
+## Check the plausibility of the data
+
+```{r}
+summary(static_combined)
+```
+
+The `Pi` column have to be replaced with the original data.
+
+```{r}
+static_agg <- read.csv("static_agg_data.csv")
+static_combined$pi <- static_agg$pi
+
+# Replace NAs with 0
+static_combined$pi[is.na(static_combined$pi)] <- 0
+table(static_combined$pi)
+```
+## Kmeans clustering
+
+Let us apply kmeans for the two groups
+```{r}
+library(caret)
+
+# Convert to dummy variables (one-hot-encoding)
+dmy <- dummyVars(" ~ .", data = static_combined, fullRank=T)
+static_dmy <- data.frame(predict(dmy, newdata = static_combined))
+names(static_dmy)
+
+# Scale the data
+static_scaled <- as.data.frame(scale(static_dmy), col.names = colnames(static_dmy))
+```
+
+```{r fig.width=10, fig.height=8}
+library(corrplot)
+
+stat_corr <- cor(static_scaled)
+
+for (i in 1:ncol(stat_corr)) {
+  stat_corr[i,i] <- 0
+}
+high_corr <- apply(stat_corr, 1, function (x) any(x>0.9))
+
+par(oma=c(0.2,0.1,1,0.2))
+corrplot(stat_corr[high_corr, high_corr], method="color", type = 'lower', addCoef.col = "black")
+mtext("Variables with correlation > 0.9 with at least one variable", outer = TRUE, cex = 1.5)
+```
+
+## Kmeans clustering 
+
+```{r message=FALSE, fig.width=10, fig.height=8}
+library(dplyr)
+
+k2 <- kmeans(select(static_scaled, -c(pi, pi_dayfromadmit) ), centers = 2, nstart = 10)
+
+
+# plot the 2 clusters identified by kmeans
+library(factoextra)
+p1 <- fviz_cluster(k2, geom = "point", data = static_scaled) + ggtitle("k = 2")
+p1
+```
+
+### Color based on actual pi values
+
+```{r fig.width=10, fig.height=8}
+proj <- data.frame(p1$data)
+proj['pi'] <- static_combined$pi
+
+p1 + geom_jitter(aes(x=x, y = y, col=factor(pi)), data= proj)
+```
+
+### Import and analyze time series data
+
+```{r}
+ts_numeric <- combine_date("ts_numeric_aggmice.rds")
+
+```
+
+
+
+
+
+
+
+
