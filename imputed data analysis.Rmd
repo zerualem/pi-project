@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 # Function to read and combine imputed data
-combine_date <- function(fname){
+combine_data <- function(fname){
   imp_dt <- readRDS(paste0("Mice-impute-output/", fname))
   imp1 <- complete(imp_dt, 1)
   imp2 <- complete(imp_dt, 2)
@@ -52,7 +52,7 @@ combine_date <- function(fname){
 ```{r message=FALSE}
 library(mice)
 
-static_combined <- combine_date("static_agg_datamice.rds")
+static_combined <- combine_data("static_agg_datamice.rds")
 
 ```
 ## Check the plausibility of the data
@@ -124,14 +124,90 @@ proj['pi'] <- static_combined$pi
 p1 + geom_jitter(aes(x=x, y = y, col=factor(pi)), data= proj)
 ```
 
-### Import and analyze time series data
+### Import and analyze other data
 
 ```{r}
-ts_numeric <- combine_date("ts_numeric_aggmice.rds")
+ts_numeric <- combine_data("ts_numeric_aggmice.rds")
+periop_numeric <- combine_data("periop_numeric_aggmice.rds")
+braden_perc <- combine_data("braden_agg_percmice.rds")
+periop_binary <- read.csv("periop_yn_agg.csv")
+ts_binary <- read.csv("ts_binary_agg.csv")
+
+all_piData <- cbind(static_combined, ts_numeric, ts_binary, periop_numeric, periop_binary, braden_perc)
+
+dim(all_piData)
 
 ```
 
+## Logistic regression
 
+### Split the data to training and testing set
+
+```{r}
+
+which(apply(all_piData, 2, function(x) any(is.na(x))))
+```
+
+```{r fig.width=10, fig.height=8}
+num_features <- lapply(all_piData, is.numeric)
+
+pi_corr <- cor(all_piData[, names(which(unlist(num_features )))])
+
+for (i in 1:ncol(pi_corr)) {
+  pi_corr[i,i] <- 0
+}
+high_corr <- apply(pi_corr, 1, function (x) any(abs(x)>0.95))
+sum(high_corr)
+pi_hi_corr <- pi_corr[high_corr, high_corr]
+
+corrplot(pi_hi_corr, method="color", tl.pos = "n")
+```
+
+
+
+```{r}
+library(dplyr)
+all_piData <- subset(all_piData, select = -periop_tempmax_avg)
+
+# Create Training Data
+pi_ones <- all_piData[which(all_piData$pi == 1), ]  # all 1's
+pi_zeros <- all_piData[which(all_piData$pi == 0), ]   # all 0's
+set.seed(100)  # for repeatability of samples
+pi_ones_training_rows <- sample(1:nrow(pi_ones), 0.7*nrow(pi_ones))  # 1's for training
+pi_zeros_training_rows <- sample(1:nrow(pi_zeros), 0.7*nrow(pi_zeros))  # 0's for training. Pick as many 0's as 1's
+training_ones <- pi_ones[pi_ones_training_rows, ]  
+training_zeros <- pi_zeros[pi_zeros_training_rows, ]
+trainingData <- rbind(training_ones, training_zeros)  # row bind the 1's and 0's 
+
+# Create Test Data
+test_ones <- pi_ones[-pi_ones_training_rows, ]
+test_zeros <- pi_zeros[-pi_zeros_training_rows, ]
+testData <- rbind(test_ones, test_zeros)  # row bind the 1's and 0's 
+```
+
+
+```{r fig.width=12, fig.height=8}
+library(glmnet)
+
+rm_vars <- c("pi", "pi_dayfromadmit", "pressure_injury_poa")
+x_training = trainingData[, - which(names(trainingData) %in% rm_vars)]
+x_test = testData[, - which(names(testData) %in% rm_vars)]
+```
+
+
+
+```{r fig.width=12, fig.height=8}
+cvlog = cv.glmnet(data.matrix(x_training), trainingData$pi, family = "binomial", type.measure = "class")
+
+plot(cvlog)
+```
+
+```{r}
+library(caret)
+y_test_pred <- predict(cvlog, newx = data.matrix(x_test), s = "lambda.min", type = "class")
+xtab <- table(as.factor(testData$pi), as.factor(y_test_pred))
+confusionMatrix(xtab, positive ="1")
+```
 
 
 
