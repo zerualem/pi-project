@@ -47,6 +47,8 @@ combine_data <- function(fname){
   return(cbind(num_dt, imp1[, cat_vars]))
 }
 
+num_vars <- function(df) names(df)[unlist(lapply(df, is.numeric))]
+
 ```
 
 ```{r message=FALSE}
@@ -64,13 +66,45 @@ summary(static_combined)
 The `Pi` column have to be replaced with the original data.
 
 ```{r}
-static_agg <- read.csv("static_agg_data.csv")
+static_agg <- read.csv("static_agg_data.csv", header = T, row.names = 1)
 static_combined$pi <- static_agg$pi
 
 # Replace NAs with 0
 static_combined$pi[is.na(static_combined$pi)] <- 0
+static_agg$pi <- static_combined$pi
 table(static_combined$pi)
 ```
+
+```{r fig.width=11, fig.height=11}
+static_numeric <- static_combined[, num_vars(static_combined)]
+static_agg_num <- static_agg[,num_vars(static_agg)]
+
+distplot <- function(dt1, dt2){
+  n.row <- ceiling(length(dt1)/5)
+  par(mfrow=c(n.row,5), cex=0.7, cex.main=1.2,
+      mai=c(5,2,2,2), 
+      mar=c(2,2,2,.5))
+  col1 <- yarrr::transparent("springgreen", trans.val = 0.2)
+  col2 <- yarrr::transparent("red", trans.val = .6)
+  for (i in seq(length(dt1)) ) {
+    h1 <- hist(dt1[,i], breaks = 20, plot = F)
+    h2 <- hist(dt2[,i], breaks = 20, plot = F)
+    
+    hist(dt1[,i], main = names(dt1)[i], freq=F, breaks = 20, ylim = c(0, 1.2*max(c(h1$density,h2$density))),
+         col=col1, xlab = "", ylab = "")
+    hist(dt2[,i], breaks = 20, freq=F, col=col2, xlab = "", ylab = "", add=T)
+    box()
+    
+    #print(2*max(h1$counts,h2$counts, na.rm = T))
+    
+  }
+}
+
+#distplot(static_numeric)
+distplot(static_agg_num, static_numeric)
+
+```
+
 ## Kmeans clustering
 
 Let us apply kmeans for the two groups
@@ -208,8 +242,23 @@ y_test_pred <- predict(cvlog, newx = data.matrix(x_test), s = "lambda.min", type
 xtab <- table(as.factor(testData$pi), as.factor(y_test_pred))
 confusionMatrix(xtab, positive ="1")
 ```
+### Compare the above result with a dummy prediction
 
+```{r}
+y_dummy <- factor(rep("0",nrow(testData)), levels = c("0","1"))
+table(y_dummy)
+dummytab <- table(as.factor(testData$pi), y_dummy)
+dummytab
+confusionMatrix(dummytab, positive ="1")
+```
 
+```{r}
+age <- (static_combined$ageinyears-mean(static_combined$ageinyears))/(max(static_combined$ageinyears) -min(static_combined$ageinyears))
+par(mfrow=c(1,3))
+plot(density(static_scaled$ageinyears))
+plot(density(static_combined$ageinyears))
+plot(density(age))
+```
 
 
 
