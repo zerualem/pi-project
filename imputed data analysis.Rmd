@@ -255,22 +255,18 @@ plot(k.values, wss_values,
 fviz_nbclust(km_dt, kmeans, method = "silhouette")
 ```
 
-
-### Import and analyze other data
+### t-SNE
 
 ```{r}
-ts_numeric <- combine_data("ts_numeric_aggmice.rds")
-periop_numeric <- combine_data("periop_numeric_aggmice.rds")
-braden_perc <- combine_data("braden_agg_percmice.rds")
-periop_binary <- read.csv("periop_yn_agg.csv")
-ts_binary <- read.csv("ts_binary_agg.csv")
-
-all_piData <- cbind(static_combined, ts_numeric, ts_binary, periop_numeric, periop_binary, braden_perc)
-
-dim(all_piData)
-
+library(Rtsne)
+set.seed(3434)
+tsne_pi <- Rtsne(km_dt, dims = 2, perplexity=80, verbose=TRUE, max_iter = 500)
 ```
+```{r}
+pi.clr <- ifelse(static_combined$pi == 0, "#4caf50","#e64a19") 
 
+plot(tsne_pi$Y,  col = pi.clr, )
+```
 ## Logistic regression
 
 ### Split the data to training and testing set
