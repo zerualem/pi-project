@@ -79,13 +79,15 @@ table(static_combined$pi)
 static_numeric <- static_combined[, num_vars(static_combined)]
 static_agg_num <- static_agg[,num_vars(static_agg)]
 
+col1 <- yarrr::transparent("springgreen", trans.val = 0.2)
+col2 <- yarrr::transparent("red", trans.val = .6)
+  
 distplot <- function(dt1, dt2){
   n.row <- ceiling(length(dt1)/5)
   par(mfrow=c(n.row,5), cex=0.7, cex.main=1.2,
       mai=c(5,2,2,2), 
       mar=c(2,2,2,.5))
-  col1 <- yarrr::transparent("springgreen", trans.val = 0.2)
-  col2 <- yarrr::transparent("red", trans.val = .6)
+  
   for (i in seq(length(dt1)) ) {
     h1 <- hist(dt1[,i], breaks = 20, plot = F)
     h2 <- hist(dt2[,i], breaks = 20, plot = F)
@@ -102,8 +104,34 @@ distplot <- function(dt1, dt2){
 
 #distplot(static_numeric)
 distplot(static_agg_num, static_numeric)
-
 ```
+
+```{r fig.width=11, fig.height=11}
+static_cat <- static_combined[, !(names(static_combined) %in% num_vars(static_combined))]
+static_agg_cat <- static_agg[,!(names(static_agg) %in% num_vars(static_agg))]
+
+bar_plot <- function(dt1, dt2){
+  
+  n.row <- ceiling(length(dt1)/8)
+  par(mfrow=c(n.row,6), cex=0.7, cex.main=1.2,
+      mai=c(5,2,2,2), 
+      mar=c(2,2,2,.5))
+  for (i in seq(ncol(dt1))) {
+    x.prop1 <- prop.table(table(dt1[,i]))
+    x.prop2 <- prop.table(table(dt2[,i]))
+    
+    barplot(x.prop1, xpd=FALSE, main = names(dt1)[i], 
+              col = col1, 
+              ylim = c(0,max(x.prop1,x.prop2)*1.1))
+    barplot(x.prop2, xpd=F, col=col2, add = T)
+    box()
+  }
+  
+}
+
+bar_plot(static_agg_cat, static_cat)
+```
+
 
 ## Kmeans clustering
 
@@ -118,12 +146,24 @@ names(static_dmy)
 
 # Scale the data
 static_scaled <- as.data.frame(scale(static_dmy), col.names = colnames(static_dmy))
+
+# min max scaling
+
+min_max <- function(dt) {
+  min_ <- apply(dt, 2, min, na.rm=T)
+  max_ <- apply(dt, 2, max, na.rm=T)
+  dt_min_max <- t(apply(apply(dt, 1, function(x) x-min_), 2, function(x) x/(max_ - min_)))
+  return(dt_min_max)
+}
+
+static_min_max <- min_max(static_dmy)
+summary(static_min_max)
 ```
 
 ```{r fig.width=10, fig.height=8}
 library(corrplot)
 
-stat_corr <- cor(static_scaled)
+stat_corr <- cor(static_min_max)
 
 for (i in 1:ncol(stat_corr)) {
   stat_corr[i,i] <- 0
@@ -131,8 +171,10 @@ for (i in 1:ncol(stat_corr)) {
 high_corr <- apply(stat_corr, 1, function (x) any(x>0.9))
 
 par(oma=c(0.2,0.1,1,0.2))
-corrplot(stat_corr[high_corr, high_corr], method="color", type = 'lower', addCoef.col = "black")
-mtext("Variables with correlation > 0.9 with at least one variable", outer = TRUE, cex = 1.5)
+corrplot(stat_corr[high_corr, high_corr], method="color", 
+         type = 'lower', addCoef.col = "black")
+mtext("Variables with correlation > 0.9 with at least one variable", 
+      outer = TRUE, cex = 1.5)
 ```
 
 ## Kmeans clustering 
@@ -140,12 +182,12 @@ mtext("Variables with correlation > 0.9 with at least one variable", outer = TRU
 ```{r message=FALSE, fig.width=10, fig.height=8}
 library(dplyr)
 
-k2 <- kmeans(select(static_scaled, -c(pi, pi_dayfromadmit) ), centers = 2, nstart = 10)
-
+km_dt <- min_max(select(static_dmy, -c(pi, pi_dayfromadmit) ))
+k2 <- kmeans(km_dt, centers = 2, nstart = 10)
 
 # plot the 2 clusters identified by kmeans
 library(factoextra)
-p1 <- fviz_cluster(k2, geom = "point", data = static_scaled) + ggtitle("k = 2")
+p1 <- fviz_cluster(k2, geom = "point", data = static_min_max) + ggtitle("k = 2")
 p1
 ```
 
@@ -155,8 +197,64 @@ p1
 proj <- data.frame(p1$data)
 proj['pi'] <- static_combined$pi
 
-p1 + geom_jitter(aes(x=x, y = y, col=factor(pi)), data= proj)
+ggplot() + geom_jitter(aes(x=x, y = y, col=factor(pi)), data= proj) +
+  xlim(-15,0) + ylim(-10,10)
 ```
+
+### PCA
+
+```{r}
+res.pca <- prcomp(km_dt)
+fviz_eig(res.pca)
+
+res.ind <- get_pca_ind(res.pca)
+pca.cord <- data.frame(res.ind$coord)
+
+```
+
+
+```{r message=FALSE}
+library(plotly)
+
+k3 <- kmeans(km_dt, centers = 3, nstart = 10)
+
+p <- plot_ly(pca.cord, x = ~Dim.1, y = ~Dim.2, z = ~Dim.3, color = as.factor(k3$cluster), colors = c('#8e24aa','#BF382A', '#0C4B8E')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Dim1'),
+                     yaxis = list(title = 'Dim 2'),
+                     zaxis = list(title = 'Dim 3')))
+p
+
+```
+
+
+### Best K value
+
+```{r}
+set.seed(123)
+
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(km_dt, k, nstart = 10 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 15
+k.values <- seq(2, 20,2)
+
+# extract wss for 2-15 clusters
+wss_values <- purrr::map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+```
+### Silhoutte method to determine k
+
+```{r}
+fviz_nbclust(km_dt, kmeans, method = "silhouette")
+```
+
 
 ### Import and analyze other data
 
